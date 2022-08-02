@@ -250,13 +250,13 @@ manage = function(plugin_data)
   if not plugin_spec.type then
     plugin_utils.guess_type(plugin_spec)
   end
-  if plugin_spec.type ~= plugin_utils.custom_plugin_type then
-    plugin_types[plugin_spec.type].setup(plugin_spec)
-  end
   for k, v in pairs(plugin_spec) do
     if handlers[k] then
       handlers[k](plugins, plugin_spec, v)
     end
+  end
+  if plugin_spec.type ~= plugin_utils.custom_plugin_type then
+    plugin_types[plugin_spec.type].setup(plugin_spec)
   end
   plugins[plugin_spec.short_name] = plugin_spec
   if plugin_spec.rocks then
