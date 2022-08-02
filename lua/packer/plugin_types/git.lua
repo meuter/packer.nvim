@@ -139,14 +139,15 @@ local handle_checkouts = function(plugin, dest, disp)
     end
 
     if plugin.commit then
+      local commit = type(plugin.commit) == 'table' and plugin.commit.commit or plugin.commit
       if disp ~= nil then
-        disp:task_update(plugin_name, fmt('checking out %s...', plugin.commit))
+        disp:task_update(plugin_name, fmt('checking out %s...', commit))
       end
       r
-        :and_then(await, jobs.run(config.exec_cmd .. fmt(config.subcommands.checkout, plugin.commit), opts))
+        :and_then(await, jobs.run(config.exec_cmd .. fmt(config.subcommands.checkout, commit), opts))
         :map_err(function(err)
           return {
-            msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin_name),
+            msg = fmt('Error checking out commit %s for %s', commit, plugin_name),
             data = err,
             output = output,
           }
@@ -193,8 +194,19 @@ end
 git.setup = function(plugin)
   local plugin_name = util.get_plugin_full_name(plugin)
   local install_to = plugin.install_path
-  local install_cmd =
-    vim.split(config.exec_cmd .. fmt(config.subcommands.install, plugin.commit and 999999 or config.depth), '%s+')
+
+  local install_cmd = vim.split(config.exec_cmd .. config.subcommands.install, '%s+')
+  if plugin.commit then
+    if type(plugin.commit) == 'table' then
+      install_cmd[#install_cmd + 1] = fmt([[--shallow-since="%s"]], plugin.commit.date)
+    else
+      install_cmd[#install_cmd + 1] = '--depth'
+      install_cmd[#install_cmd + 1] = '999999'
+    end
+  else
+    install_cmd[#install_cmd + 1] = '--depth'
+    install_cmd[#install_cmd + 1] = '1'
+  end
 
   local submodule_cmd = config.exec_cmd .. config.subcommands.submodules
   local rev_cmd = config.exec_cmd .. config.subcommands.get_rev
@@ -249,12 +261,13 @@ git.setup = function(plugin)
       r:and_then(await, jobs.run(submodule_cmd, installer_opts))
 
       if plugin.commit then
-        disp:task_update(plugin_name, fmt('checking out %s...', plugin.commit))
+        local commit = type(plugin.commit) == 'table' and plugin.commit.commit or plugin.commit
+        disp:task_update(plugin_name, fmt('checking out %s...', commit))
         r
-          :and_then(await, jobs.run(config.exec_cmd .. fmt(config.subcommands.checkout, plugin.commit), installer_opts))
+          :and_then(await, jobs.run(config.exec_cmd .. fmt(config.subcommands.checkout, commit), installer_opts))
           :map_err(function(err)
             return {
-              msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin_name),
+              msg = fmt('Error checking out commit %s for %s', commit, plugin_name),
               data = { err, output },
             }
           end)
