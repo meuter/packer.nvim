@@ -1,8 +1,5 @@
 local a = require 'packer.async'
-local util = require 'packer.util'
-local log = require 'packer.log'
 local plugin_utils = require 'packer.plugin_utils'
-local plugin_complete = require('packer').plugin_complete
 local result = require 'packer.result'
 local async = a.sync
 local await = a.wait
@@ -31,11 +28,15 @@ local function collect_commits(plugins)
   return async(function()
     for _, plugin in pairs(plugins) do
       local rev = await(plugin.get_rev())
+      local date = await(plugin.get_date())
       if rev.err then
         failed[plugin.short_name] =
-          fmt("Snapshotting %s failed because of error '%s'", plugin.short_name, vim.inspect(rev.err))
+          fmt("Getting rev for '%s' failed because of error '%s'", plugin.short_name, vim.inspect(rev.err))
+      elseif date.err then
+        failed[plugin.short_name] =
+          fmt("Getting date for '%s' failed because of error '%s'", plugin.short_name, vim.inspect(date.err))
       else
-        completed[plugin.short_name] = { commit = rev.ok }
+        completed[plugin.short_name] = { commit = rev.ok, date = date.ok }
       end
     end
 
@@ -49,7 +50,7 @@ lockfile.update = function(plugins)
     local commits = await(collect_commits(plugins))
 
     for name, commit in pairs(commits.ok.completed) do
-      lines[#lines + 1] = fmt([[  ["%s"] = { commit = "%s" },]], name, commit.commit)
+      lines[#lines + 1] = fmt([[  ["%s"] = { commit = "%s", date = %s },]], name, commit.commit, commit.date)
     end
 
     table.sort(lines)

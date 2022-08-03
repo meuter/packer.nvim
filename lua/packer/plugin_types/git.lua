@@ -190,6 +190,25 @@ local get_rev = function(plugin)
   end)
 end
 
+local get_date = function(plugin)
+  local plugin_name = util.get_plugin_full_name(plugin)
+  local date_cmd = config.exec_cmd .. config.subcommands.get_date
+
+  return async(function()
+    local date = await(jobs.run(date_cmd, { cwd = plugin.install_path, options = { env = git.job_env }, capture_output = true }))
+      :map_ok(function(ok)
+        local _, r = next(ok.output.data.stdout)
+        return r
+      end)
+      :map_err(function(err)
+        local _, msg = fmt('%s: %s', plugin_name, next(err.output.data.stderr))
+        return msg
+      end)
+
+    return date
+  end)
+end
+
 git.setup = function(plugin)
   local plugin_name = util.get_plugin_full_name(plugin)
   local install_to = plugin.install_path
@@ -531,6 +550,12 @@ git.setup = function(plugin)
   ---@return string
   plugin.get_rev = function()
     return get_rev(plugin)
+  end
+
+  ---Returns HEAD's commit date
+  ---@return string
+  plugin.get_date = function()
+    return get_date(plugin)
   end
 end
 
