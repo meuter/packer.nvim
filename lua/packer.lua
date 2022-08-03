@@ -64,6 +64,11 @@ local config_defaults = {
     prompt_border = 'double',
     keybindings = { quit = 'q', toggle_info = '<CR>', diff = 'd', prompt_revert = 'r', retry = 'R' },
   },
+  lockfile = {
+    enable = true,
+    path = join_paths(stdpath 'config', 'lua', 'lockfile.lua'),
+    module = 'lockfile',
+  },
   luarocks = { python_cmd = 'python' },
   log = { level = 'warn' },
   profile = { enable = false },
@@ -91,6 +96,7 @@ local configurable_modules = {
   luarocks = false,
   log = false,
   snapshot = false,
+  lockfile = false,
 }
 
 local function require_and_configure(module_name)
@@ -118,6 +124,7 @@ packer.init = function(user_config)
   config.pack_dir = join_paths(config.package_root, config.plugin_package)
   config.opt_dir = join_paths(config.pack_dir, 'opt')
   config.start_dir = join_paths(config.pack_dir, 'start')
+  config.lockfile.path = vim.fn.fnamemodify(config.lockfile.path, ':p')
   if #vim.api.nvim_list_uis() == 0 then
     config.display.non_interactive = true
   end
@@ -131,8 +138,17 @@ packer.init = function(user_config)
     packer.make_commands()
   end
 
-  if vim.fn.mkdir(config.snapshot_path, 'p') ~= 1 then
-    vim.notify("Couldn't create " .. config.snapshot_path, vim.log.levels.WARN)
+  require_and_configure 'lockfile'
+
+  local paths = {
+    config.snapshot_path,
+    vim.fn.fnamemodify(config.lockfile.path, ':h'),
+  }
+
+  for _, path in ipairs(paths) do
+    if vim.fn.mkdir(path, 'p') ~= 1 then
+      vim.notify("Couldn't create " .. path, vim.log.levels.WARN)
+    end
   end
 end
 
@@ -922,6 +938,38 @@ packer.rollback = function(snapshot_name, ...)
         vim.notify('Rollback to "' .. snapshot_path .. '" completed', vim.log.levels.INFO, { title = 'packer.nvim' })
         if next(ok.failed) then
           vim.notify("Couldn't rollback " .. vim.inspect(ok.failed), vim.log.levels.INFO, { title = 'packer.nvim' })
+        end
+      end)
+      :map_err(function(err)
+        await(a.main)
+        vim.notify(err, vim.log.levels.ERROR, { title = 'packer.nvim' })
+      end)
+
+    packer.on_complete()
+  end)()
+end
+
+---Update lockfile with current plugin status
+packer.lockfile_update = function()
+  local a = require 'packer.async'
+  local async = a.sync
+  local await = a.wait
+  local lockfile = require_and_configure 'lockfile'
+
+  async(function()
+    manage_all_plugins()
+
+    await(lockfile.update(plugins))
+      :map_ok(function(ok)
+        await(a.main)
+        if next(ok.failed) then
+          vim.notify(
+            'Could not update lockfile ' .. vim.inspect(ok.failed),
+            vim.log.levels.INFO,
+            { title = 'packer.nvim' }
+          )
+        else
+          vim.notify('Lockfile updated', vim.log.levels.INFO, { title = 'packer.nvim' })
         end
       end)
       :map_err(function(err)
