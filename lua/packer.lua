@@ -139,7 +139,7 @@ packer.init = function(user_config)
     packer.make_commands()
   end
 
-  require_and_configure 'lockfile'
+  require_and_configure('lockfile').load()
 
   local paths = {
     config.snapshot_path,
@@ -266,6 +266,9 @@ manage = function(plugin_data)
   local handlers = require_and_configure 'handlers'
   if not plugin_spec.type then
     plugin_utils.guess_type(plugin_spec)
+  end
+  if config.lockfile.enable then
+    require_and_configure('lockfile').apply(plugin_spec)
   end
   if plugin_spec.type ~= plugin_utils.custom_plugin_type then
     plugin_types[plugin_spec.type].setup(plugin_spec)
